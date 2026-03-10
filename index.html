@@ -390,6 +390,24 @@ onAuthStateChanged(auth, async (user) => {
   window.isPremium   = user ? await checkPremium(user.uid) : false;
   updateAuthUI(user);
   if (lastFetchedLinks.length > 0) renderQualityGrid();
+
+  // Save user info to Firebase so admin can see them
+  if (user) {
+    try {
+      const userRef = ref(db, `users/${user.uid}`);
+      const snap = await get(userRef);
+      const existing = snap.exists() ? snap.val() : {};
+      await set(userRef, {
+        name:      user.displayName || "Unknown",
+        email:     user.email || "",
+        photoURL:  user.photoURL || "",
+        uid:       user.uid,
+        premium:   existing.premium || false,
+        lastLogin: Date.now(),
+        createdAt: existing.createdAt || Date.now()
+      });
+    } catch(e) { console.warn("Could not save user:", e.message); }
+  }
 });
 
 document.getElementById("googleSignIn")?.addEventListener("click", async () => {
