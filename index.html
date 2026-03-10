@@ -491,20 +491,49 @@ async function fetchVideo() {
 
 // ---- Multiple API attempts ----
 async function resolveLinks(url) {
-  const apis = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent('https://saveig.app/api?url='+encodeURIComponent(url))}`,
-    `https://api.allorigins.win/get?url=${encodeURIComponent('https://instasave.io/api?url='+encodeURIComponent(url))}`,
-  ];
-  for (const api of apis) {
+  // Instagram
+  if (url.includes("instagram.com") || url.includes("instagr.am")) {
     try {
-      const res = await fetch(api);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const parsed = JSON.parse(data.contents);
-      if (parsed?.links?.length>0) return parsed.links;
-      if (parsed?.url) return [{url:parsed.url,quality:"HD"}];
-    } catch { continue; }
+      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://saveig.app/api?url='+encodeURIComponent(url))}`);
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = JSON.parse(data.contents);
+        if (parsed?.links?.length > 0) return parsed.links;
+        if (parsed?.url) return [{url: parsed.url, quality: "HD", resolution: "720p"}];
+      }
+    } catch {}
   }
+
+  // Facebook - Method 1: fdown
+  if (url.includes("facebook.com") || url.includes("fb.watch") || url.includes("fb.com")) {
+    try {
+      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://fdown.net/index.php?URLz='+encodeURIComponent(url))}`);
+      if (res.ok) {
+        const data = await res.json();
+        const html = data.contents || "";
+        const hdMatch = html.match(/id="hdlink"[^>]*href="([^"]+)"/);
+        const sdMatch = html.match(/id="sdlink"[^>]*href="([^"]+)"/);
+        const links = [];
+        if (hdMatch?.[1]) links.push({url: hdMatch[1], quality: "HD", resolution: "720p"});
+        if (sdMatch?.[1]) links.push({url: sdMatch[1], quality: "SD", resolution: "480p"});
+        if (links.length > 0) return links;
+      }
+    } catch {}
+
+    // Facebook - Method 2: getfvid scrape
+    try {
+      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.getfvid.com/downloader?url='+encodeURIComponent(url))}`);
+      if (res.ok) {
+        const data = await res.json();
+        const html = data.contents || "";
+        const matches = [...html.matchAll(/href="(https:\/\/[^"]*\.mp4[^"]*)"/g)];
+        if (matches.length > 0) {
+          return matches.slice(0,2).map((m,i) => ({url: m[1], quality: i===0?"HD":"SD", resolution: i===0?"720p":"480p"}));
+        }
+      }
+    } catch {}
+  }
+
   return null;
 }
 
