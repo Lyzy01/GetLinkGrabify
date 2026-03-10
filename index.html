@@ -439,7 +439,38 @@ document.querySelectorAll(".platform-tab.coming-soon").forEach(tab => {
 // ---- Input ----
 const urlInput = document.getElementById("urlInput");
 const clearBtn = document.getElementById("clearBtn");
-urlInput?.addEventListener("input", ()=>{ clearBtn.style.display=urlInput.value?"block":"none"; });
+// ---- Auto-detect platform from pasted URL ----
+const platformDetect = [
+  { platform: "instagram", patterns: ["instagram.com", "instagr.am"] },
+  { platform: "facebook",  patterns: ["facebook.com", "fb.watch", "fb.com"] },
+  { platform: "tiktok",    patterns: ["tiktok.com", "vm.tiktok.com"] },
+  { platform: "youtube",   patterns: ["youtube.com", "youtu.be"] },
+  { platform: "twitter",   patterns: ["twitter.com", "x.com"] },
+];
+
+function autoDetectPlatform(url) {
+  for (const p of platformDetect) {
+    if (p.patterns.some(pattern => url.includes(pattern))) return p.platform;
+  }
+  return null;
+}
+
+function switchPlatformTab(platform) {
+  const tab = document.querySelector(`.platform-tab[data-platform="${platform}"]`);
+  if (!tab || tab.classList.contains("coming-soon")) return;
+  document.querySelectorAll(".platform-tab").forEach(t => t.classList.remove("active"));
+  tab.classList.add("active");
+  activePlatform = platform;
+  document.getElementById("platformLabel").textContent =
+    tab.querySelector("span:nth-child(2)")?.textContent || platform;
+}
+
+urlInput?.addEventListener("input", () => {
+  clearBtn.style.display = urlInput.value ? "block" : "none";
+  // Auto-detect and switch platform tab
+  const detected = autoDetectPlatform(urlInput.value.trim());
+  if (detected) switchPlatformTab(detected);
+});
 clearBtn?.addEventListener("click", ()=>{ urlInput.value=""; clearBtn.style.display="none"; resetDownloader(); });
 urlInput?.addEventListener("keydown", e=>{ if(e.key==="Enter") fetchVideo(); });
 document.getElementById("fetchBtn")?.addEventListener("click", fetchVideo);
