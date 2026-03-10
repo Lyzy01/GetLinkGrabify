@@ -19,7 +19,7 @@ import {
 //  Access: /admin/index.html?key=grabify_admin_2025
 // =============================================
 const ADMIN_SECRET = "grabify_admin_2025";
-const ADMIN_EMAILS = ["YOUR_ADMIN_EMAIL@gmail.com"]; // ← Replace with your Gmail
+const ADMIN_EMAILS = ["kimmendezfeb01@gmail.com"]; // ← Replace with your Gmail
 
 const params = new URLSearchParams(window.location.search);
 if (params.get("key") !== ADMIN_SECRET) {
