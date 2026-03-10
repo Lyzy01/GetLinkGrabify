@@ -439,21 +439,38 @@ function renderQualityGrid() {
   const grid = document.getElementById("qualityGrid");
   if (!grid || lastFetchedLinks.length===0) return;
   grid.innerHTML = "";
-  qualities.forEach(q => {
-    const canUse = !q.premium || window.isPremium;
-    const link   = lastFetchedLinks.find(l=>matchQuality(l,q.id)) || lastFetchedLinks[0];
-    const item   = document.createElement("div");
+
+  // Use actual links returned from backend
+  lastFetchedLinks.forEach((link, i) => {
+    const isAudio   = link.resolution === "mp3" || link.quality === "Audio";
+    const res       = link.resolution || link.quality || "HD";
+    const isPremium = ["1080p","1440p","2160p","4K","2K","Audio","mp3"].includes(res) || i >= 2;
+    const canUse    = !isPremium || window.isPremium;
+
+    const item = document.createElement("div");
     item.className = "quality-item"+(canUse?"":" locked");
     item.innerHTML = `
-      <span class="quality-badge ${q.premium?"":"free"}">${q.premium?"⭐ PREMIUM":"FREE"}</span>
-      <span class="quality-name">${q.name}</span>
-      <span class="quality-info">${q.info}</span>`;
+      <span class="quality-badge ${isPremium?"":"free"}">${isPremium?"⭐ PREMIUM":"FREE"}</span>
+      <span class="quality-name">${isAudio?"🎵 MP3":res}</span>
+      <span class="quality-info">${isAudio?"Audio only":link.quality||"Video"}${link.filesize?" · "+link.filesize:""}</span>`;
     item.addEventListener("click", ()=>{
       if (!canUse) { document.getElementById("gcashModal").style.display="flex"; return; }
-      triggerDownload(link?.url||"#", q.name, q.id==="mp3");
+      triggerDownload(link.url, res, isAudio);
     });
     grid.appendChild(item);
   });
+
+  // If premium and no 4K available, show locked placeholder
+  if (!lastFetchedLinks.find(l => l.resolution==="2160p" || l.quality==="4K")) {
+    const item = document.createElement("div");
+    item.className = "quality-item locked";
+    item.innerHTML = `
+      <span class="quality-badge">⭐ PREMIUM</span>
+      <span class="quality-name">4K</span>
+      <span class="quality-info">Ultra HD · Premium only</span>`;
+    item.addEventListener("click", ()=>{ document.getElementById("gcashModal").style.display="flex"; });
+    grid.appendChild(item);
+  }
 }
 
 function matchQuality(link, qid) {
@@ -490,51 +507,51 @@ async function fetchVideo() {
 }
 
 // ---- Multiple API attempts ----
+// =============================================
+//  BACKEND API URL — Update this after you deploy
+//  your grabify-backend to Render!
+//  Example: "https://grabify-api.onrender.com"
+// =============================================
+const BACKEND_URL = "https://grabify-api.onrender.com";
+
 async function resolveLinks(url) {
-  // Instagram
-  if (url.includes("instagram.com") || url.includes("instagr.am")) {
-    try {
-      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://saveig.app/api?url='+encodeURIComponent(url))}`);
-      if (res.ok) {
-        const data = await res.json();
-        const parsed = JSON.parse(data.contents);
-        if (parsed?.links?.length > 0) return parsed.links;
-        if (parsed?.url) return [{url: parsed.url, quality: "HD", resolution: "720p"}];
-      }
-    } catch {}
+  try {
+    showStatus('<span style="color:#f9a826">⟳ Connecting to server...</span>', "loading");
+    const res = await fetch(`${BACKEND_URL}/api/download?url=${encodeURIComponent(url)}`);
+    
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Server error");
+    }
+
+    const data = await res.json();
+    
+    if (!data.qualities || data.qualities.length === 0) {
+      throw new Error("No downloadable formats found");
+    }
+
+    // Store video title/thumbnail for display
+    if (data.title) {
+      document.title = `Grabify — ${data.title}`;
+    }
+
+    // Map to our format
+    return data.qualities.map(q => ({
+      url:        q.url,
+      quality:    q.quality,
+      resolution: q.resolution,
+      ext:        q.ext,
+      filesize:   q.filesize
+    }));
+
+  } catch (err) {
+    console.error("[API Error]", err.message);
+    // If backend is sleeping (Render free tier), show wake-up message
+    if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
+      showStatus("⏳ Server is waking up... please wait 30 seconds and try again.", "error");
+    }
+    return null;
   }
-
-  // Facebook - Method 1: fdown
-  if (url.includes("facebook.com") || url.includes("fb.watch") || url.includes("fb.com")) {
-    try {
-      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://fdown.net/index.php?URLz='+encodeURIComponent(url))}`);
-      if (res.ok) {
-        const data = await res.json();
-        const html = data.contents || "";
-        const hdMatch = html.match(/id="hdlink"[^>]*href="([^"]+)"/);
-        const sdMatch = html.match(/id="sdlink"[^>]*href="([^"]+)"/);
-        const links = [];
-        if (hdMatch?.[1]) links.push({url: hdMatch[1], quality: "HD", resolution: "720p"});
-        if (sdMatch?.[1]) links.push({url: sdMatch[1], quality: "SD", resolution: "480p"});
-        if (links.length > 0) return links;
-      }
-    } catch {}
-
-    // Facebook - Method 2: getfvid scrape
-    try {
-      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.getfvid.com/downloader?url='+encodeURIComponent(url))}`);
-      if (res.ok) {
-        const data = await res.json();
-        const html = data.contents || "";
-        const matches = [...html.matchAll(/href="(https:\/\/[^"]*\.mp4[^"]*)"/g)];
-        if (matches.length > 0) {
-          return matches.slice(0,2).map((m,i) => ({url: m[1], quality: i===0?"HD":"SD", resolution: i===0?"720p":"480p"}));
-        }
-      }
-    } catch {}
-  }
-
-  return null;
 }
 
 // ---- Download Animation ----
