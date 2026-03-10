@@ -413,7 +413,7 @@ input[type="text"]::placeholder, .ref-input::placeholder { color: var(--muted2);
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, get, push, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const app = initializeApp({
@@ -428,6 +428,7 @@ const app = initializeApp({
 const auth = getAuth(app);
 const db   = getDatabase(app);
 const BACKEND_URL = "https://grabify-backend.onrender.com";
+const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
 let activePlatform = "instagram", lastFetchedLinks = [], originalVideoUrl = "";
 window.currentUser = null; window.isPremium = false;
@@ -461,10 +462,30 @@ onAuthStateChanged(auth, async(user)=>{
   if(user){try{const ur=ref(db,`users/${user.uid}`);const sn=await get(ur);const ex=sn.exists()?sn.val():{};await set(ur,{name:user.displayName||"Unknown",email:user.email||"",photoURL:user.photoURL||"",uid:user.uid,premium:ex.premium||false,lastLogin:Date.now(),createdAt:ex.createdAt||Date.now()});}catch(e){console.warn(e.message);}}
 });
 
-document.getElementById("googleSignIn")?.addEventListener("click",async()=>{
-  const s=document.getElementById("signInStatus");
-  try{s.textContent="Opening Google sign-in...";await signInWithPopup(auth,new GoogleAuthProvider());document.getElementById("signInModal").style.display="none";s.textContent="";}
-  catch{s.className="modal-note error";s.textContent="Sign-in failed. Try again.";}
+// Handle redirect result when user returns from Google sign-in on mobile
+getRedirectResult(auth).then(async result => {
+  if (result?.user) {
+    document.getElementById("signInModal").style.display = "none";
+  }
+}).catch(err => console.warn("Redirect result error:", err.message));
+
+document.getElementById("googleSignIn")?.addEventListener("click", async () => {
+  const s = document.getElementById("signInStatus");
+  const provider = new GoogleAuthProvider();
+  try {
+    s.textContent = "Opening Google sign-in...";
+    if (isMobile) {
+      // Mobile: redirect is more reliable than popup
+      await signInWithRedirect(auth, provider);
+    } else {
+      await signInWithPopup(auth, provider);
+      document.getElementById("signInModal").style.display = "none";
+      s.textContent = "";
+    }
+  } catch {
+    s.className = "modal-note error";
+    s.textContent = "Sign-in failed. Try again.";
+  }
 });
 document.getElementById("signInClose")?.addEventListener("click",()=>document.getElementById("signInModal").style.display="none");
 
@@ -601,15 +622,40 @@ updateArrows();
 btnLeft?.addEventListener("click",  () => { scrollWrap.scrollBy({ left: -200, behavior: "smooth" }); });
 btnRight?.addEventListener("click", () => { scrollWrap.scrollBy({ left: 200,  behavior: "smooth" }); });
 
-// Drag to scroll (desktop)
+// Drag to scroll — mouse (desktop)
 let isDragging = false, startX = 0, startScroll = 0;
 scrollWrap?.addEventListener("mousedown", e => { isDragging=true; startX=e.pageX-scrollWrap.offsetLeft; startScroll=scrollWrap.scrollLeft; });
 document.addEventListener("mousemove",    e => { if(!isDragging)return; e.preventDefault(); scrollWrap.scrollLeft=startScroll-(e.pageX-scrollWrap.offsetLeft-startX); });
 document.addEventListener("mouseup",      ()=> { isDragging=false; });
 
+// Drag to scroll — touch (mobile)
+let touchStartX = 0, touchStartScroll = 0;
+scrollWrap?.addEventListener("touchstart", e => { touchStartX=e.touches[0].pageX; touchStartScroll=scrollWrap.scrollLeft; }, {passive:true});
+scrollWrap?.addEventListener("touchmove",  e => { scrollWrap.scrollLeft=touchStartScroll-(e.touches[0].pageX-touchStartX); }, {passive:true});
+
 document.getElementById("btnGetPremium")?.addEventListener("click",()=>document.getElementById("gcashModal").style.display="flex");
 document.getElementById("modalClose")?.addEventListener("click",()=>document.getElementById("gcashModal").style.display="none");
-window.copyGcash=function(){navigator.clipboard.writeText("09538728759").then(()=>{const b=document.querySelector(".copy-btn");b.textContent="Copied!";setTimeout(()=>b.textContent="Copy",2000);});};
+window.copyGcash = function() {
+  const num = "09538728759";
+  const btn = document.querySelector(".copy-btn");
+  // Try modern clipboard API first
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(num).then(() => {
+      btn.textContent = "Copied!"; setTimeout(() => btn.textContent = "Copy", 2000);
+    }).catch(() => fallbackCopy(num, btn));
+  } else {
+    fallbackCopy(num, btn);
+  }
+};
+function fallbackCopy(text, btn) {
+  // Works on older Android browsers
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand("copy"); btn.textContent = "Copied!"; setTimeout(() => btn.textContent = "Copy", 2000); }
+  catch { btn.textContent = "Copy manually"; }
+  document.body.removeChild(ta);
+}
 document.getElementById("submitRef")?.addEventListener("click",async()=>{
   const rv=document.getElementById("refInput")?.value.trim(),name=document.getElementById("refName")?.value.trim(),status=document.getElementById("submitStatus"),btn=document.getElementById("submitRef");
   if(!rv||rv.length<6){status.className="modal-note error";status.textContent="Please enter a valid reference number.";return;}
