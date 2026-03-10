@@ -224,12 +224,14 @@ input[type="text"]::placeholder, .ref-input::placeholder { color: var(--muted2);
     <div class="platform-tabs">
       <button class="platform-tab active" data-platform="instagram"><span class="tab-icon">📸</span><span>Instagram</span></button>
       <button class="platform-tab" data-platform="facebook"><span class="tab-icon">👥</span><span>Facebook</span></button>
-      <button class="platform-tab coming-soon" data-platform="tiktok"><span class="tab-icon">🎵</span><span>TikTok</span><span class="soon-badge">Soon</span></button>
-      <button class="platform-tab coming-soon" data-platform="youtube"><span class="tab-icon">▶️</span><span>YouTube</span><span class="soon-badge">Soon</span></button>
-      <button class="platform-tab coming-soon" data-platform="twitter"><span class="tab-icon">🐦</span><span>X / Twitter</span><span class="soon-badge">Soon</span></button>
+      <button class="platform-tab" data-platform="tiktok"><span class="tab-icon">🎵</span><span>TikTok</span></button>
+      <button class="platform-tab" data-platform="youtube"><span class="tab-icon">▶️</span><span>YouTube</span></button>
+      <button class="platform-tab" data-platform="twitter"><span class="tab-icon">🐦</span><span>X / Twitter</span></button>
+      <button class="platform-tab" data-platform="vimeo"><span class="tab-icon">🎬</span><span>Vimeo</span></button>
+      <button class="platform-tab" data-platform="reddit"><span class="tab-icon">🤖</span><span>Reddit</span></button>
+      <button class="platform-tab" data-platform="dailymotion"><span class="tab-icon">📹</span><span>Dailymotion</span></button>
       <button class="platform-tab coming-soon" data-platform="pinterest"><span class="tab-icon">📌</span><span>Pinterest</span><span class="soon-badge">Soon</span></button>
       <button class="platform-tab coming-soon" data-platform="snapchat"><span class="tab-icon">👻</span><span>Snapchat</span><span class="soon-badge">Soon</span></button>
-      <button class="platform-tab coming-soon" data-platform="vimeo"><span class="tab-icon">🎬</span><span>Vimeo</span><span class="soon-badge">Soon</span></button>
     </div>
   </section>
 
@@ -441,11 +443,14 @@ const urlInput = document.getElementById("urlInput");
 const clearBtn = document.getElementById("clearBtn");
 // ---- Auto-detect platform from pasted URL ----
 const platformDetect = [
-  { platform: "instagram", patterns: ["instagram.com", "instagr.am"] },
-  { platform: "facebook",  patterns: ["facebook.com", "fb.watch", "fb.com"] },
-  { platform: "tiktok",    patterns: ["tiktok.com", "vm.tiktok.com"] },
-  { platform: "youtube",   patterns: ["youtube.com", "youtu.be"] },
-  { platform: "twitter",   patterns: ["twitter.com", "x.com"] },
+  { platform: "instagram",    patterns: ["instagram.com", "instagr.am"] },
+  { platform: "facebook",     patterns: ["facebook.com", "fb.watch", "fb.com"] },
+  { platform: "tiktok",       patterns: ["tiktok.com", "vm.tiktok.com"] },
+  { platform: "youtube",      patterns: ["youtube.com", "youtu.be"] },
+  { platform: "twitter",      patterns: ["twitter.com", "x.com"] },
+  { platform: "vimeo",        patterns: ["vimeo.com"] },
+  { platform: "reddit",       patterns: ["reddit.com", "redd.it", "v.redd.it"] },
+  { platform: "dailymotion",  patterns: ["dailymotion.com", "dai.ly"] },
 ];
 
 function autoDetectPlatform(url) {
@@ -461,8 +466,12 @@ function switchPlatformTab(platform) {
   document.querySelectorAll(".platform-tab").forEach(t => t.classList.remove("active"));
   tab.classList.add("active");
   activePlatform = platform;
-  document.getElementById("platformLabel").textContent =
-    tab.querySelector("span:nth-child(2)")?.textContent || platform;
+  const labelMap = {
+    instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok",
+    youtube: "YouTube", twitter: "X / Twitter", vimeo: "Vimeo",
+    reddit: "Reddit", dailymotion: "Dailymotion"
+  };
+  document.getElementById("platformLabel").textContent = labelMap[platform] || platform;
 }
 
 urlInput?.addEventListener("input", () => {
